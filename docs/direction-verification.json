@@ -1,0 +1,17 @@
+{
+  "space_id": "space_bacafa130b84447e",
+  "created_node": "世界模型",
+  "checks": {
+    "qas_preserved": true,
+    "thoughts_preserved": true,
+    "conversations_preserved": true,
+    "thought_coordinates_preserved": true,
+    "existing_node_structure_and_summary_preserved": true,
+    "repeat_no_duplicate": true,
+    "direction_visible_in_thought_space": true
+  },
+  "java_tests": 15,
+  "python_tests": 17,
+  "frontend_build": "passed",
+  "note": "新增子节点使根节点版本与更新时间递增，根节点原有总结及结构未改写。"
+}

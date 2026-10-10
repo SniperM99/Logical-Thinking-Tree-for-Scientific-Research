@@ -111,3 +111,7 @@ Java 从服务端加载当前会话历史交给 AI，不接受客户端自行拼
 右上方“思想空间”可查看真实 512 维坐标的二维投影、核心概念、近邻距离与聚类理由。历史问答已可版本化量化，新问答自动采用本地 BGE 嵌入与 DeepSeek 意图判定。详见 [语义空间实现](docs/SEMANTIC-SPACE.md)。候选阈值仍属试验参数，需要继续校准。
 
 普通会话的回答与思想/核心概念提取已合并为一次 DeepSeek 请求，坐标随后在本地计算。候选意图判断仍按需独立调用。每轮保存实际 token usage；详见 [合并请求验收](docs/combined-verification.json)。
+
+研究演化归属已支持同一会话的顺序证据与高维思想坐标联合判断。新节点在创建时确定深入分支位置；已有节点通过可审核的移动预览调整。见 [会话生长规则](docs/CONVERSATION-GROWTH.md) 和 [真实空间验证](docs/conversation-growth-verification.json)。
+
+问答可靠性：有效回答和思想不会因后续归类失败而丢失。聊天内可单独“重试生长分析”，不重新生成回答；模型格式或截断错误会显示具体原因。实际多轮验收见 [可靠性验证](docs/reliability-verification.json)。

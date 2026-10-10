@@ -20,6 +20,7 @@ public class ApiController {
   @PostMapping("/nodes") Object node(@RequestBody Map<String,Object>d){return core.createNode(d);}
   @PostMapping("/conversations") Object conv(@RequestBody Map<String,Object>d){return core.conversation(d);}
   @PostMapping("/qa") Object qa(@RequestBody Map<String,Object>d){return core.qa(d);}
+  @PostMapping("/qa/{id}/growth/retry") Object retryGrowth(@PathVariable String id){return core.retryGrowth(id);}
   @PostMapping("/proposals") Object propose(@RequestBody Map<String,Object>d){return core.propose(d);}
   @PostMapping("/proposals/{id}/approve") Object approve(@PathVariable String id){return core.approve(id);}
   @PostMapping("/proposals/{id}/reject") Object reject(@PathVariable String id){return core.reject(id);}

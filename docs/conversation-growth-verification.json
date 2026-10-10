@@ -1,0 +1,25 @@
+{
+  "space_id": "space_bacafa130b84447e",
+  "proposal_id": "proposal_0693354787f54878",
+  "status": "pending",
+  "proposed_parent": "世界模型",
+  "child": "JEPA的核心假设与其可批判性",
+  "branch_start_turn": 3,
+  "parent_evidence_turns": [
+    1
+  ],
+  "max_high_dimensional_cosine": 0.5971492376433859,
+  "checks": {
+    "qas_preserved_before_review": true,
+    "thoughts_preserved_before_review": true,
+    "conversations_preserved_before_review": true,
+    "thought_coordinates_preserved_before_review": true,
+    "nodes_preserved_before_review": true,
+    "repeat_no_duplicate_proposal": true,
+    "repeat_no_additional_placement_call": true
+  },
+  "java_tests": 21,
+  "python_tests": 20,
+  "frontend_build": "passed",
+  "approval_execution": "validated in isolated domain tests; real existing node awaits researcher review"
+}

@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "space_id": "space_7b194cb2ee24455c",
+  "conversation_id": "conv_7965b344b50949bc",
+  "turn_count": 2,
+  "answer_extraction_requests_per_turn": 1,
+  "growth_statuses": [
+    "complete",
+    "complete"
+  ],
+  "answer_characters": [
+    1370,
+    1417
+  ],
+  "local_vector_dimensions": [
+    [
+      512,
+      512,
+      512
+    ],
+    [
+      512,
+      512,
+      512
+    ]
+  ],
+  "java_tests": 23,
+  "python_tests": 21,
+  "frontend_build": "passed",
+  "failure_recovery": "mocked AI candidate failure preserves QA and coordinates; explicit retry does not re-answer"
+}

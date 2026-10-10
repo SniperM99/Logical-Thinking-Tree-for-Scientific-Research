@@ -39,4 +39,15 @@ class ConversationRulesTest {
     var history=objects(captured.get(2).get("history"));assertEquals(1,history.size());
     assertTrue(history.toString().contains("43871"));assertFalse(history.toString().contains("87345"));
   }
+ @Test @SuppressWarnings("unchecked") void growthFailurePreservesAnswerAndRetryDoesNotGenerateAnotherAnswer(){
+    var conv=obj(service.conversation(map("space_id",space)));
+    when(ai.call(eq("/research-turn"),any())).thenReturn(map("answer","有效回答","analysis",map("thoughts",List.of(map("text","同一具体研究机制","topic","机制研究","excerpt","","original_coordinate",List.of(1.0,0.0),"working_coordinate",List.of(1.0,0.0),"coordinate_method","semantic-test","semantic_embedding",true,"core_concepts",List.of("机制"))))));
+    when(ai.call(eq("/coordinates"),any())).thenReturn(map("method","semantic-test","vectors",List.of(List.of(1.0,0.0))));
+    service.qa(map("conversation_id",conv.get("id"),"question","研究机制第一轮","request_id","saved1"));
+    when(ai.call(eq("/intent-matches"),any())).thenThrow(new AiClient.AiFailure("研究方向判断字段缺失"));
+    var result=obj(service.qa(map("conversation_id",conv.get("id"),"question","研究机制第二轮","request_id","saved2")));var qa=obj(result.get("qa"));String qid=s(qa,"id");
+    assertEquals("有效回答",qa.get("answer"));assertEquals("pending",obj(result.get("growth_status")).get("status"));assertEquals(2,graph.all("qas").size());assertEquals(2,graph.all("thoughts").size());assertTrue(graph.all("thought_links").isEmpty());assertEquals(1,graph.all("nodes").size());
+    var originalQa=new LinkedHashMap<>(graph.get("qas",qid));when(ai.call(eq("/intent-matches"),any())).thenAnswer(i->{var body=(Map<String,Object>)i.getArgument(1);return map("decisions",objects(body.get("pairs")).stream().map(p->map("id",p.get("id"),"decision","same_intent","reason","同一问题")).toList());});
+    var retry=obj(service.retryGrowth(qid));assertEquals("complete",obj(retry.get("growth_status")).get("status"));assertEquals(originalQa,graph.get("qas",qid));assertEquals(1,objects(retry.get("created_nodes")).size());verify(ai,times(2)).call(eq("/research-turn"),any());
+  }
 }
