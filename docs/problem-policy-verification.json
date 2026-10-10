@@ -1,0 +1,45 @@
+{
+  "space_id": "space_0d1223c2c5154122",
+  "conversation_id": "conv_adee4d8079264a7f",
+  "results": [
+    {
+      "qa_id": "qa_fd7e31b4d8c74f50",
+      "node_id": "node_4f19a695684c4f6f",
+      "title": "JEPA 世界模型研究",
+      "assignment_status": "resolved",
+      "reason": "用户明确表示要“系统研究JEPA”，属于从空间入口转向独立研究主题，且具有明确独立目标，符合branch条件；父节点为空间入口节点0。",
+      "created_nodes": [
+        {
+          "id": "node_4f19a695684c4f6f",
+          "title": "JEPA 世界模型研究",
+          "parent_id": "node_22fe267863154764"
+        }
+      ],
+      "growth_status": "complete"
+    },
+    {
+      "qa_id": "qa_5a2a7e0b7c844a44",
+      "node_id": "node_4f19a695684c4f6f",
+      "title": "JEPA 世界模型研究",
+      "assignment_status": "resolved",
+      "reason": "用户明确说明\"只是对JEPA的追问\"，聚焦JEPA防坍缩机制及其局限，属于已有JEPA世界模型研究节点内\"如何防止坍缩\"这一研究主线的具体知识点深化，非独立新研究目标，故accumulate到节点0。",
+      "created_nodes": [],
+      "growth_status": "complete"
+    },
+    {
+      "qa_id": "qa_09c04ba8fe8b4502",
+      "node_id": "node_768346aabfec4490",
+      "title": "JEPA 目标网络 EMA 防坍缩的消融验证",
+      "assignment_status": "resolved",
+      "reason": "用户明确提出\"独立开展一个实验\"，固定容量与数据、对照有无 EMA 测试坍缩，构成可单独持续研究的实验目标，符合 branch 条件；父节点为 JEPA 世界模型研究，故挂于节点 0。",
+      "created_nodes": [
+        {
+          "id": "node_768346aabfec4490",
+          "title": "JEPA 目标网络 EMA 防坍缩的消融验证",
+          "parent_id": "node_4f19a695684c4f6f"
+        }
+      ],
+      "growth_status": "complete"
+    }
+  ]
+}

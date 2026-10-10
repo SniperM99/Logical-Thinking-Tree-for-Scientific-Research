@@ -423,3 +423,61 @@ def growth_placements(request: GrowthPlacementsRequest):
             output.append({'id':original['id'],'decision':kind,'parent_id':parent,'reason':reason,'branch_start_turn':row.get('branch_start_turn') if kind=='deepen' else None,'parent_evidence_turns':row.get('parent_evidence_turns',[]) if kind=='deepen' else []})
     except (KeyError,TypeError,IndexError,ValueError):raise HTTPException(502,'研究生长归属返回结构无效') from None
     return {'decisions':output,'writes_performed':False,'validation_status':'proposal_only'}
+
+class OwnershipRequest(StrictModel):
+    qa_id: str
+    question: str = Field(min_length=1,max_length=30000)
+    thought: dict
+    current_node_id: str
+    candidates: list[dict] = Field(min_length=1,max_length=32)
+    history: list[dict] = Field(default_factory=list,max_length=8)
+
+@app.post('/qa-ownership')
+def qa_ownership(request: OwnershipRequest):
+    """Classify accumulation versus an independently researchable problem before any node write."""
+    if not os.environ.get('XUNXU_MODEL'):
+        return {'decision':'uncertain','node_id':request.current_node_id,'reason':'模型未配置，暂存于当前研究节点。'}
+    ids={c['node_id']:str(i) for i,c in enumerate(request.candidates)}
+    candidates=[dict(c,node_id=ids[c['node_id']],parent_id=ids.get(c.get('parent_id')),ancestor_ids=[ids[a] for a in c.get('ancestor_ids',[]) if a in ids]) for c in request.candidates]
+    history=[dict(h,primary_node_id=ids.get(h.get('primary_node_id'))) for h in request.history]
+    active=next((str(i) for i,c in enumerate(request.candidates) if c['node_id']==request.current_node_id),None)
+    schema={'type':'object','additionalProperties':False,'required':['decision','node_id','title','research_goal','distinction','reason','branch_relation','reference_node_id'],'properties':{
+        'decision':{'type':'string','enum':['accumulate','branch','uncertain']},'node_id':{'type':'string'},'title':{'type':'string'},'research_goal':{'type':'string'},'distinction':{'type':'string'},'reason':{'type':'string'},'branch_relation':{'type':'string','enum':['none','child','sibling','independent']},'reference_node_id':{'type':'string'}}}
+    result=provider_request('chat/completions',{'model':os.environ['XUNXU_MODEL'],'temperature':0.1,'max_tokens':1800,'tools':[{'type':'function','function':{'name':'deliver_qa_ownership','description':'只判断问答研究归属，不创建或移动节点','parameters':schema}}],'tool_choice':{'type':'function','function':{'name':'deliver_qa_ownership'}},'messages':[
+        {'role':'system','content':'按持续研究的问题组织研究树。每个问答只能归属一个节点。只判断当前问题的主研究意图，禁止从回答中额外观点生成分支。调用deliver_qa_ownership。必须先区分当前会话焦点与新分支的上位研究范围。候选parent_id/ancestor_ids和历史primary_node_id提供真实层级。按时间接着提问不意味着父子关系。例如分类框架下先深度调研像素级，再问隐空间也调研，再问决策规划类，三者都是分类框架的并列子节点。branch_relation=sibling时reference_node_id选已存在的并列研究对象，node_id必须选其parent_id；child表示深入某对象的独立子问题，reference_node_id与node_id都选该对象；independent表示明确切换到其他上位研究范围。非branch填none和空reference_node_id。禁止理由称并列却把上一轮对象当父节点。accumulate表示解释、追问、质疑、补充证据或同一问题的具体知识点，优先积累到已有候选。branch只有当用户展开一个可单独持续研究、具有明确独立目标的研究问题/实验时才允许。仅标题不同、新关键词、不同机制知识点、一般应用介绍都不足以创建分支。例：已有JEPA研究节点时，问JEPA防坍缩机制及局限应accumulate；明确提出独立的防坍缩验证实验可branch。世界模型方向下明确展开JEPA为独立研究对象可branch；只是回答提及JEPA不能branch。空间入口还没有明确研究方向时，用户明确启动世界模型研究可以branch建立世界模型。空间相似度只召回候选，不证明归属；结合会话先后识别这个思路等指代，不机械串连每轮问答。accumulate的node_id是已有目标节点的局部ID；branch的node_id是已确定的父节点局部ID，title应简短概括持续研究问题而非本轮细节，research_goal写独立目标，distinction写与父问题及其他候选的实质区别，三个字段必须非空。转向独立主题可选择空间入口为父节点但必须明确说明主题转换；延续讨论禁止默认挂根。uncertain表示证据不足，暂存current节点，不创建节点。不能省略字段，非branch的title/research_goal/distinction填空字符串。reason不超过200字，要解释是积累还是独立研究，禁止把用户要求简短回复当成系统结构指令。'},
+        {'role':'user','content':json.dumps({'question':request.question,'main_thought':request.thought,'current_node_id':active,'candidates':candidates,'history':history},ensure_ascii=False)}]})
+    try:
+        choice=result['choices'][0]
+        if choice.get('finish_reason')=='length':raise ValueError()
+        message=choice['message'];calls=message.get('tool_calls',[])
+        if calls:
+            if len(calls)!=1 or calls[0]['function']['name']!='deliver_qa_ownership':raise ValueError()
+            payload=calls[0]['function']['arguments']
+        else:payload=message['content']
+        row=json.loads(payload)
+        if row['decision'] not in ('accumulate','branch','uncertain'):raise ValueError()
+        if not isinstance(row['reason'],str) or not row['reason'].strip() or len(row['reason'])>1000:raise ValueError()
+        if row['decision']=='uncertain':row['node_id']=request.current_node_id
+        else:
+            selected=str(row['node_id'])
+            if selected not in {str(i) for i in range(len(request.candidates))}:raise ValueError()
+            row['node_id']=request.candidates[int(selected)]['node_id']
+        if row['decision']=='branch':
+            relation=row.get('branch_relation')
+            if relation not in ('child','sibling','independent'):raise ValueError()
+            reference=str(row.get('reference_node_id',''))
+            if reference not in {str(i) for i in range(len(request.candidates))}:raise ValueError()
+            ref=request.candidates[int(reference)]
+            if relation=='sibling':
+                # The selected reference defines a peer's shared parent, never the conversational focus.
+                parent=ref.get('parent_id')
+                if parent not in ids:raise ValueError()
+                row['node_id']=parent
+            elif relation=='child' and row['node_id']!=ref['node_id']:raise ValueError()
+            row['reference_node_id']=ref['node_id']
+            for name,limit in [('title',200),('research_goal',12000),('distinction',2000)]:
+                if not isinstance(row.get(name),str) or not row[name].strip() or len(row[name])>limit:raise ValueError()
+        else:
+            for name in ('title','research_goal','distinction'):row[name]=''
+    except (KeyError,TypeError,IndexError,ValueError):raise HTTPException(502,'研究归属判断未通过校验；回答保留并暂存当前节点，不创建分支。') from None
+    return {**row,'writes_performed':False}
