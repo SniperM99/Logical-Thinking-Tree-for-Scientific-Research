@@ -14,4 +14,4 @@ spring:
 xunxu:
   ai-url: ${XUNXU_AI_URL:http://127.0.0.1:8001}
   server-token: ${XUNXU_SERVER_TOKEN:}
-  seed: ${XUNXU_SEED:true}
+  seed: ${XUNXU_SEED:false}
