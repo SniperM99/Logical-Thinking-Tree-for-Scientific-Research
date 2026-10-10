@@ -12,6 +12,7 @@ public class ApiController {
   final GraphService core;final DeviceService devices;final AiClient ai;
   public ApiController(GraphService core,DeviceService devices,AiClient ai){this.core=core;this.devices=devices;this.ai=ai;}
   @Bean ApplicationRunner seed(@Value("${xunxu.seed}")boolean enabled){return args->{if(enabled)core.seed();};}
+  @PostMapping("/qa/assignments/reconcile") Object reconcileQaNodes(@RequestBody Map<String,Object> d){return core.reconcileQaNodes((String)d.get("space_id"));}
   @GetMapping("/health") Object health(){return Map.of("ok",true,"framework","1.1","version","0.1.0","final_write_authority","Java Research Graph Core");}
   @GetMapping("/state") Object state(@RequestParam(name="space_id",required=false)String sid){return core.state(sid);}
   @GetMapping("/context") Object context(@RequestParam(name="node_id")String nid){return core.context(nid);}

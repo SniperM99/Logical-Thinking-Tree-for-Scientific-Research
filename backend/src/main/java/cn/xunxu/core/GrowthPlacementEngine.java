@@ -8,6 +8,7 @@ import java.util.*;
 final class GrowthPlacementEngine {
   final GraphService core;
   final AiClient ai;
+  final Map<String,List<Number>> nodeVectors=new HashMap<>();
   GrowthPlacementEngine(GraphService core,AiClient ai){this.core=core;this.ai=ai;}
 
   List<Map<String,Object>> evidence(Graph g,Map<String,Object> node,String conversation){
@@ -28,6 +29,7 @@ final class GrowthPlacementEngine {
     for(var a:coordinates)if(childThoughts.contains(s(a,"thought_id"))&&childIds.contains(s(a,"qa_id")))
       for(var b:coordinates)if(parentThoughts.contains(s(b,"thought_id"))&&parentIds.contains(s(b,"qa_id"))&&ThoughtSpaceEngine.compatible(a,b))
         max=Math.max(max,ThoughtSpaceEngine.cosine(ThoughtSpaceEngine.vector(a),ThoughtSpaceEngine.vector(b)));
+    if(max<0&&nodeVectors.containsKey(s(child,"id"))&&nodeVectors.containsKey(s(parent,"id")))max=ThoughtSpaceEngine.cosine(nodeVectors.get(s(child,"id")),nodeVectors.get(s(parent,"id")));
     return max;
   }
   long branchFloor(Graph g,Map<String,Object> node,String cid,long fallback){
@@ -37,6 +39,8 @@ final class GrowthPlacementEngine {
   long ownConversationCount(Graph g,Map<String,Object> node){return evidence(g,node,null).stream().map(q->s(q,"conversation_id")).filter(Objects::nonNull).distinct().count();}
   void place(Graph g,String sid,List<Map<String,Object>> created){
     var coordinates=core.thoughtSpace.latest(g,sid);var createdIds=created.stream().map(n->s(n,"id")).toList();
+    nodeVectors.clear();var visible=g.all("nodes").stream().filter(n->eq(n.get("space_id"),sid)&&!flag(n,"hidden")&&!flag(n,"archived")).toList();
+    for(int offset=0;offset<visible.size();offset+=128){var batch=visible.subList(offset,Math.min(offset+128,visible.size()));var encoded=ai.call("/coordinates",map("texts",batch.stream().map(n->n.get("title")).toList()));if(encoded!=null&&encoded.get("vectors") instanceof List<?> vectors&&vectors.size()==batch.size()){for(int i=0;i<batch.size();i++){var raw=(List<?>)vectors.get(i);if(!raw.isEmpty()&&raw.stream().allMatch(v->v instanceof Number)){var vector=new ArrayList<Number>();for(var v:raw)vector.add((Number)v);nodeVectors.put(s(batch.get(i),"id"),vector);}}}}
     var pending=new ArrayList<Map<String,Object>>();var metadata=new LinkedHashMap<String,Map<String,Object>>();
     for(var child:g.all("nodes")){
       if(!eq(child.get("space_id"),sid)||child.get("parent_id")==null||flag(child,"archived")||flag(child,"frozen")||flag(child,"hidden")||!strings(child,"sources").isEmpty())continue;

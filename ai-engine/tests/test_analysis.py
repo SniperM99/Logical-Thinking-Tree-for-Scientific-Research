@@ -54,8 +54,8 @@ class StatelessAnalysis(unittest.TestCase):
         self.assertEqual([x['role'] for x in first['thoughts']],['main','auxiliary'])
         self.assertEqual([x['trigger_id'] for x in first['thoughts']],[x['trigger_id'] for x in second['thoughts']])
         for thought in first['thoughts']:
-            self.assertEqual(len(thought['original_coordinate']),512)
-            self.assertTrue(thought['semantic_embedding'])
+            self.assertEqual(len(thought['original_coordinate']),512 if thought['role']=='main' else 0)
+            self.assertEqual(thought['semantic_embedding'],thought['role']=='main')
             self.assertEqual(thought['original_coordinate'],thought['working_coordinate'])
             self.assertFalse(thought['proposal']['create_automatically'])
             self.assertEqual(thought['proposal']['minimum_distinct_qas'],2)

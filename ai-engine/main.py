@@ -148,9 +148,10 @@ def analyze(request: AnalyzeRequest) -> dict:
             raise HTTPException(502,'自动思想提取结果不合法，研究数据未提交。') from None
     if not specs:
         specs=[ThoughtInput(text=request.question,topic=request.question[:80])]
-    vectors, method, semantic = coordinates([t.text for t in specs])
+    vectors, method, semantic = coordinates([specs[0].text])
     thoughts = []
-    for index,(spec,vector) in enumerate(zip(specs,vectors)):
+    for index,spec in enumerate(specs):
+        vector=vectors[0] if index==0 else []
         trigger = hashlib.sha256((request.context.space_id+'\0'+request.qa_id+'\0'+str(index)).encode()).hexdigest()
         matches = [n for n in request.existing_nodes if n.title.strip()==spec.topic.strip()]
         # Exact labels are candidate matches, never enough to declare intent/conditions equal.
@@ -163,7 +164,7 @@ def analyze(request: AnalyzeRequest) -> dict:
         thoughts.append({'trigger_id':trigger,'qa_id':request.qa_id,'role':'main' if index==0 else 'auxiliary',
                          'text':spec.text,'topic':spec.topic,'excerpt':spec.excerpt,'core_concepts':spec.core_concepts or [spec.topic],
                          'original_coordinate':vector,'working_coordinate':vector[:],
-                         'coordinate_method':method,'semantic_embedding':semantic,'proposal':proposal})
+                         'coordinate_method':method if index==0 else 'not-quantified','semantic_embedding':semantic if index==0 else False,'proposal':proposal})
     return {'qa_id':request.qa_id,'space_id':request.context.space_id,'node_id':request.context.node_id,
             'thoughts':thoughts,'analysis_version':'0.1.0','writes_performed':False,
             'validation_status':'unvalidated','warnings':['高维坐标、显示坐标与结构归属必须分开。',
@@ -247,7 +248,7 @@ def intent_matches(request: IntentMatches):
         return {'decisions':[{'id':p.id,'decision':'not_evaluated','reason':'模型未配置，不能判定语义归并'} for p in request.pairs],'writes_performed':False}
     schema={'type':'object','additionalProperties':False,'required':['decisions'],'properties':{'decisions':{'type':'array','minItems':1,'maxItems':30,'items':{'type':'object','additionalProperties':False,'required':['id','decision','reason','direction_title','direction_reason'],'properties':{'id':{'type':'string'},'decision':{'type':'string','enum':['same_intent','related','distinct']},'reason':{'type':'string'},'direction_title':{'type':'string'},'direction_reason':{'type':'string'}}}}}}
     result=provider_request('chat/completions',{'model':os.environ['XUNXU_MODEL'],'max_tokens':6000,'tools':[{'type':'function','function':{'name':'deliver_intent_matches','description':'返回思想意图与研究方向判断，不执行结构操作','parameters':schema}}],'tool_choice':{'type':'function','function':{'name':'deliver_intent_matches'}},'messages':[
-        {'role':'system','content':'判断研究意图是否相同。仅通过 deliver_intent_matches 返回 JSON decisions数组，每项必须包含 id、decision（same_intent|related|distinct）、reason、direction_title、direction_reason 五个字段，不能遗漏后两个方向字段。即使无共同方向也必须返回空direction_title并说明direction_reason。same_intent须研究目标/具体问题相同且适用条件兼容，不要求标题字面相同。共享JEPA等对象不代表同问题：机制、应用、哲学是不同问题，应related；相反实验条件不能same_intent；存在不确定性用related。另外独立判断研究方向：返回 direction_title（不满足则空字符串）及 direction_reason。仅当双方role均为main，原始question明确以同一研究对象为主要讨论对象，且至少一问是方向、理论谱系、整体解读或应用探索等概览，才能形成有意义的共同研究方向；不同具体问题不妨碍同方向。例如世界模型方向概览与哲学世界模型可返回世界模型；JEPA整体解读与JEPA应用可返回JEPA。禁止仅因回答中提及同词、共享宽泛AI等领域、不同实验条件或相反目标而给出方向。方向标题简短且具体，不能以两个不同对象拼接。same_intent与方向判定互相独立，只建议，不执行合并。'},
+        {'role':'system','content':'判断研究意图是否相同。仅通过 deliver_intent_matches 返回 JSON decisions数组，每项必须包含 id、decision（same_intent|related|distinct）、reason、direction_title、direction_reason 五个字段，reason和direction_reason各不超过150字，不能遗漏后两个方向字段。即使无共同方向也必须返回空direction_title并说明direction_reason。same_intent须研究目标/具体问题相同且适用条件兼容，不要求标题字面相同。共享JEPA等对象不代表同问题：机制、应用、哲学是不同问题，应related；相反实验条件不能same_intent；存在不确定性用related。另外独立判断研究方向：返回 direction_title（不满足则空字符串）及 direction_reason。仅当双方role均为main，原始question明确以同一研究对象为主要讨论对象，且至少一问是方向、理论谱系、整体解读或应用探索等概览，才能形成有意义的共同研究方向；不同具体问题不妨碍同方向。例如世界模型方向概览与哲学世界模型可返回世界模型；JEPA整体解读与JEPA应用可返回JEPA。禁止仅因回答中提及同词、共享宽泛AI等领域、不同实验条件或相反目标而给出方向。方向标题简短且具体，不能以两个不同对象拼接。same_intent与方向判定互相独立，只建议，不执行合并。'},
         {'role':'user','content':json.dumps({'pairs':[dict(p.model_dump(),id=str(i)) for i,p in enumerate(request.pairs)],'context':request.context.model_dump()},ensure_ascii=False)}]})
     try:
         choice=result['choices'][0]
@@ -259,6 +260,7 @@ def intent_matches(request: IntentMatches):
         else:payload=message['content']
         decisions=json.loads(payload)['decisions']
         if not isinstance(decisions,list) or len(decisions)!=len(request.pairs):raise ValueError()
+        for d in decisions:d['id']=str(d['id'])
         if {d['id'] for d in decisions}!={str(i) for i in range(len(request.pairs))}:raise ValueError()
         if any(d['decision'] not in ('same_intent','related','distinct') or not isinstance(d['reason'],str) or len(d['reason'])>1000 for d in decisions):raise ValueError()
     except (KeyError,TypeError,IndexError,ValueError):raise HTTPException(502,'意图判断返回结构无效') from None
@@ -334,7 +336,7 @@ def research_turn(request: ResearchTurnRequest):
     system=('你是循序科研助手，使用准入的祖先路径、当前节点背景及本会话历史连续交流。历史仅理解指代，不代表父节点已接受的结论；区分事实、假设和未执行实验，不引入其他会话或子孙总结。'
         '仅通过 deliver_research_turn 函数返回完整结果，函数参数是 JSON 对象：answer 是给用户的完整自然语言回答（可含 Markdown）；thoughts 是本轮回答对应的1至3个科研思想，第一项主要思想必须保留用户当前问题的整体研究意图：方向概览应概括方向探索，整体解读应概括对象机制，不要用回答中的一个争议或子问题取代；其余辅助思想。'
         '每项包含 text、topic、excerpt、core_concepts。text 为具体思想的完整语义表述；topic 为简短稳定的具体研究问题；core_concepts 为1至5个短核心概念。'
-        '同问题同条件可复用已知 topic，但不能仅因共享关键词复用。只提取本轮问答内容，不重复历史。excerpt 必须是当前问题中的一段短原文（不要改写），有疑问则使用空字符串，不能伪造引用。'
+        '同问题同条件可复用已知 topic，但不能仅因共享关键词复用。只提取本轮问答内容，不重复历史。excerpt 必须逐字复制当前问题或本轮 answer 中的一段连续原文，不能改写或摘取历史回答；不确定时填空字符串。'
         '不得把假设写成已证结论，不提出结构移动。不要在 answer 中解释 thoughts 或 JSON 格式。用户的字数、只回复数字等要求仅约束 answer 字段，不能省略 JSON 封装和 thoughts。'
         '格式示例：{"answer":"表征预测值得研究。","thoughts":[{"text":"研究表征预测机制","topic":"表征预测机制","excerpt":"表征预测","core_concepts":["表征预测"]}]}。示例仅说明格式，内容必须基于当前问题。\n'
         +json.dumps({'context':request.context.model_dump(),'known_intents':request.intent_catalog},ensure_ascii=False))
@@ -355,15 +357,18 @@ def research_turn(request: ResearchTurnRequest):
         if not isinstance(answer,str) or not answer.strip() or len(answer)>60000:raise ValueError()
         if not isinstance(rows,list) or not 1<=len(rows)<=3:raise ValueError()
         specs=[]
-        for t in rows:
+        validation_warnings=[]
+        for index,t in enumerate(rows):
             concepts=t['core_concepts']
             if not isinstance(concepts,list) or not 1<=len(concepts)<=20 or any(not isinstance(c,str) or not c.strip() or len(c)>100 for c in concepts):raise ValueError()
             spec=ThoughtInput(text=t['text'],topic=t['topic'],excerpt=t.get('excerpt',''),core_concepts=concepts[:5],independent=False)
-            if spec.excerpt and spec.excerpt not in request.question and spec.excerpt not in answer:raise ValueError()
+            if spec.excerpt and spec.excerpt not in request.question and spec.excerpt not in answer:
+                spec.excerpt=''
+                validation_warnings.append({'thought_index':index,'code':'unverified_excerpt_removed'})
             specs.append(spec)
     except (KeyError,TypeError,IndexError,ValueError):raise HTTPException(502,'回答与思想的合并结果不合法或被截断；未追加模型请求，研究数据未提交。') from None
     analysis=analyze(AnalyzeRequest(qa_id=request.qa_id,question=request.question,answer=answer,context=request.context,thoughts=specs))
-    return {'answer':answer,'analysis':analysis,'generation':{'model':model,'mode':'combined-answer-and-thoughts','answer_extraction_requests':1,'usage':result.get('usage',{})},'writes_performed':False}
+    return {'answer':answer,'analysis':analysis,'generation':{'model':model,'mode':'combined-answer-and-thoughts','answer_extraction_requests':1,'usage':result.get('usage',{}),'validation_warnings':validation_warnings},'writes_performed':False}
 
 class GrowthPlacementsRequest(StrictModel):
     requests: list[dict] = Field(min_length=1,max_length=10)
@@ -380,8 +385,8 @@ def growth_placements(request: GrowthPlacementsRequest):
         if not 1<=len(candidates)<=5:raise HTTPException(422,'父节点候选数量无效')
         proposals.append({'id':str(i),'child':{k:v for k,v in row.get('child',{}).items() if k!='node_id'},'candidates':[dict(c,node_id=str(j)) for j,c in enumerate(candidates)],'sequence':row.get('sequence',[])})
     schema={'type':'object','additionalProperties':False,'required':['decisions'],'properties':{'decisions':{'type':'array','minItems':1,'maxItems':10,'items':{'type':'object','additionalProperties':False,'required':['id','decision','parent_id','reason','branch_start_turn','parent_evidence_turns'],'properties':{'id':{'type':'string'},'decision':{'type':'string','enum':['deepen','continue','switch','uncertain']},'parent_id':{'type':['string','null']},'reason':{'type':'string'},'branch_start_turn':{'type':['integer','null']},'parent_evidence_turns':{'type':'array','items':{'type':'integer'}}}}}}}
-    result=provider_request('chat/completions',{'model':os.environ['XUNXU_MODEL'],'temperature':0.1,'max_tokens':2400,'tools':[{'type':'function','function':{'name':'deliver_growth_placements','description':'返回只读科研路径判断，不执行结构操作','parameters':schema}}],'tool_choice':{'type':'function','function':{'name':'deliver_growth_placements'}},'messages':[
-        {'role':'system','content':'你是科研路径归属判断器，仅调用 deliver_growth_placements 返回 JSON decisions 数组，每项必须含 id、decision（deepen|continue|switch|uncertain）、parent_id、reason、branch_start_turn（深入分支正式展开的轮次，否则null）、parent_evidence_turns（真正支持祖先关系的前序轮次列表，否则空数组）。根据同一会话按顺序的真实问题、回答片段和候选高维余弦值判断研究演化。deepen 表示当前节点是前序候选研究方向/问题的进一步展开，parent_id必须是该项请求候选中显示的局部node_id（例如字符串0），不得引用其他请求的节点、真实节点ID或会话ID。每一项只判断自己的child，不得把另一项的child代入。continue表示同一具体问题延续，不据此再挂一层；switch表示转向独立研究方向；uncertain表示证据不足。后三种parent_id必须为null。会话锚点只是历史起点，不是所有节点的父节点。顺序只是研究因果候选，不能把每个后续问题机械挂在上一节点；余弦也不是父子关系证明。必须结合前文是否明确建立研究范围、后文是否在该范围内探索子机制或方法。例：先探索世界模型及其哲学，再深度讨论JEPA与其应用，若回答和语义证据支持，则JEPA是世界模型的深入分支；不能仅因JEPA可被用于世界模型而无条件建立该层级。节点最早支持证据不等于正式分支起点：早期回答中的辅助提及可以支持后来形成的分支，却不能把分支起点提前。例如第1轮世界模型回答顺带提到JEPA，第3轮才明确要求深入解读JEPA，则branch_start_turn=3，parent_evidence_turns应是此前建立世界模型范围的第1、2轮。候选evidence可以包含早期辅助证据，判断祖先只能使用早于branch_start_turn的真实轮次，不能把未来问答、其他会话或子孙总结当成祖先依据。明确切换主题则switch；不确定宁可保留结构。reason必须引用问答轮次和语义依据。只建议，不执行移动。'},
+    result=provider_request('chat/completions',{'model':os.environ['XUNXU_MODEL'],'temperature':0.1,'max_tokens':6000,'tools':[{'type':'function','function':{'name':'deliver_growth_placements','description':'返回只读科研路径判断，不执行结构操作','parameters':schema}}],'tool_choice':{'type':'function','function':{'name':'deliver_growth_placements'}},'messages':[
+        {'role':'system','content':'你是科研路径归属判断器，仅调用 deliver_growth_placements 返回 JSON decisions 数组，每项必须含 id、decision（deepen|continue|switch|uncertain）、parent_id、reason、branch_start_turn（深入分支正式展开的轮次，否则null）、parent_evidence_turns（真正支持祖先关系的前序轮次列表，否则空数组）。根据同一会话按顺序的真实问题、回答片段和候选高维余弦值判断研究演化。deepen 表示当前节点是前序候选研究方向/问题的进一步展开，parent_id必须是该项请求候选中显示的局部node_id（例如字符串0），不得引用其他请求的节点、真实节点ID或会话ID。每一项只判断自己的child，不得把另一项的child代入。continue表示同一具体问题延续，不据此再挂一层；switch表示转向独立研究方向；uncertain表示证据不足。后三种parent_id必须为null。会话锚点只是历史起点，不是所有节点的父节点。顺序只是研究因果候选，不能把每个后续问题机械挂在上一节点；余弦也不是父子关系证明。必须结合前文是否明确建立研究范围、后文是否在该范围内探索子机制或方法。例：先探索世界模型及其哲学，再深度讨论JEPA与其应用，若回答和语义证据支持，则JEPA是世界模型的深入分支；不能仅因JEPA可被用于世界模型而无条件建立该层级。节点最早支持证据不等于正式分支起点：早期回答中的辅助提及可以支持后来形成的分支，却不能把分支起点提前。例如第1轮世界模型回答顺带提到JEPA，第3轮才明确要求深入解读JEPA，则branch_start_turn=3，parent_evidence_turns应是此前建立世界模型范围的第1、2轮。候选evidence可以包含早期辅助证据，判断祖先只能使用早于branch_start_turn的真实轮次，不能把未来问答、其他会话或子孙总结当成祖先依据。明确切换主题则switch；不确定宁可保留结构。reason必须引用问答轮次和语义依据，控制在200字内。parent_evidence_turns必须逐项检查是否确实存在于所选候选的evidence中且早于branch_start_turn；不满足时返回uncertain，禁止猜测轮次。只建议，不执行移动。'},
         {'role':'user','content':json.dumps({'requests':proposals},ensure_ascii=False)}]})
     try:
         choices=result['choices']
@@ -392,20 +397,29 @@ def growth_placements(request: GrowthPlacementsRequest):
             payload=calls[0]['function']['arguments']
         else:payload=message['content']
         rows=json.loads(payload)['decisions']
-        if not isinstance(rows,list) or len(rows)!=len(proposals) or {r['id'] for r in rows}!={str(i) for i in range(len(proposals))}:raise ValueError()
+        if not isinstance(rows,list) or len(rows)!=len(proposals) or {str(r['id']) for r in rows}!={str(i) for i in range(len(proposals))}:raise ValueError()
         output=[]
         for row in rows:
             original=request.requests[int(row['id'])];kind=row['decision'];reason=row['reason'];parent=row.get('parent_id')
             if kind not in ('deepen','continue','switch','uncertain') or not isinstance(reason,str) or not reason.strip() or len(reason)>2000:raise ValueError()
+            invalid=None
             if kind=='deepen':
-                if str(parent) not in {str(i) for i in range(len(original['candidates']))}:raise ValueError()
-                candidate=original['candidates'][int(parent)]
-                focus=row.get('branch_start_turn');basis=row.get('parent_evidence_turns')
-                if not isinstance(focus,int) or isinstance(focus,bool) or focus not in {t['turn_index'] for t in original['sequence']}:raise ValueError()
-                allowed={t['turn_index'] for t in candidate['evidence'] if t['turn_index']<focus}
-                if not isinstance(basis,list) or not basis or any(not isinstance(t,int) or isinstance(t,bool) or t not in allowed for t in basis):raise ValueError()
-                parent=candidate['node_id']
-            elif parent is not None:raise ValueError()
+                if str(parent) not in {str(i) for i in range(len(original['candidates']))}:
+                    invalid='父节点不在本项准入候选中'
+                else:
+                    candidate=original['candidates'][int(parent)]
+                    focus=row.get('branch_start_turn');basis=row.get('parent_evidence_turns')
+                    if not isinstance(focus,int) or isinstance(focus,bool) or focus not in {t['turn_index'] for t in original['sequence']}:
+                        invalid='分支起点不是有效的原会话轮次'
+                    else:
+                        allowed={t['turn_index'] for t in candidate['evidence'] if t['turn_index']<focus}
+                        if not isinstance(basis,list) or not basis or any(not isinstance(t,int) or isinstance(t,bool) or t not in allowed for t in basis):
+                            invalid='祖先依据不属于候选的前序证据'
+                    if not invalid:parent=candidate['node_id']
+            elif parent is not None:invalid='非深入判断不允许指定父节点'
+            if invalid:
+                kind='uncertain';parent=None
+                reason='归属建议未通过证据校验，保留现有结构：'+invalid+'。模型原判断：'+reason
             output.append({'id':original['id'],'decision':kind,'parent_id':parent,'reason':reason,'branch_start_turn':row.get('branch_start_turn') if kind=='deepen' else None,'parent_evidence_turns':row.get('parent_evidence_turns',[]) if kind=='deepen' else []})
     except (KeyError,TypeError,IndexError,ValueError):raise HTTPException(502,'研究生长归属返回结构无效') from None
     return {'decisions':output,'writes_performed':False,'validation_status':'proposal_only'}

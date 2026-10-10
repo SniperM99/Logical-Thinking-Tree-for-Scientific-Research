@@ -11,8 +11,8 @@ class CombinedTurn(unittest.TestCase):
    result=research_turn(self.request());self.assertEqual(provider.call_count,1);self.assertEqual(result['generation']['answer_extraction_requests'],1);self.assertEqual(result['generation']['usage']['prompt_tokens'],100)
    self.assertEqual(len(result['analysis']['thoughts'][0]['original_coordinate']),512);self.assertEqual(result['answer'],'可以研究预测表示。')
    self.assertEqual([m['role'] for m in provider.call_args.args[1]['messages']],['system','user','assistant','user'])
- def test_bad_excerpt_or_truncated_json_never_triggers_a_second_request(self):
-  for response in [self.response('不存在'),{'choices':[{'finish_reason':'length','message':{'content':'{}'}}]}]:
+ def test_truncated_or_invalid_json_never_triggers_a_second_request(self):
+  for response in [{'choices':[{'finish_reason':'stop','message':{'content':'{broken'}}]}, {'choices':[{'finish_reason':'length','message':{'content':'{}'}}]}]:
    with patch.dict(os.environ,{'XUNXU_MODEL':'test'},clear=True),patch('main.provider_request',return_value=response) as provider:
     with self.assertRaises(HTTPException):research_turn(self.request())
     self.assertEqual(provider.call_count,1)
@@ -26,3 +26,18 @@ class CombinedTurn(unittest.TestCase):
    self.assertEqual(result['answer'],'可以研究预测表示。')
    self.assertEqual(provider.call_args.args[1]['tool_choice']['function']['name'],'deliver_research_turn')
    self.assertNotIn('response_format',provider.call_args.args[1])
+
+ def test_unverified_excerpt_is_removed_without_discarding_valid_answer(self):
+  with patch.dict(os.environ,{'XUNXU_MODEL':'test'},clear=True),patch('main.provider_request',return_value=self.response('不存在')) as provider:
+   result=research_turn(self.request())
+   self.assertEqual(provider.call_count,1)
+   self.assertEqual(result['answer'],'可以研究预测表示。')
+   self.assertEqual(result['analysis']['thoughts'][0]['excerpt'],'')
+   self.assertEqual(result['generation']['validation_warnings'],[{'thought_index':0,'code':'unverified_excerpt_removed'}])
+
+ def test_only_main_thought_is_quantified(self):
+  response=self.response();raw=json.loads(response['choices'][0]['message']['content']);raw['thoughts'].append({'text':'额外观点','topic':'辅助讨论','excerpt':'','core_concepts':['额外概念']});response['choices'][0]['message']['content']=json.dumps(raw)
+  with patch.dict(os.environ,{'XUNXU_MODEL':'test'},clear=True),patch('main.provider_request',return_value=response),patch('main.coordinates',return_value=([[1.0,0.0]],'test',True)) as encode:
+   result=research_turn(self.request());encode.assert_called_once_with(['研究预测表示'])
+   self.assertEqual([],result['analysis']['thoughts'][1]['original_coordinate'])
+   self.assertFalse(result['analysis']['thoughts'][1]['semantic_embedding'])

@@ -20,11 +20,12 @@ class ConversationRulesTest {
     var d=map("conversation_id",conv.get("id"),"question","验证实验假设","request_id","turn1","expected_turn_index",0);
     var first=obj(service.qa(d));
     var second=obj(service.qa(map("conversation_id",conv.get("id"),"question","继续验证同一假设","request_id","turn2","expected_turn_index",1)));
-    assertEquals(1,objects(second.get("created_nodes")).size());verify(ai,never()).call(eq("/chat"),any());verify(ai,never()).call(eq("/analyze"),any());
+    assertEquals(0,objects(second.get("created_nodes")).size());verify(ai,never()).call(eq("/chat"),any());verify(ai,never()).call(eq("/analyze"),any());
     var restored=obj(service.conversation(s(conv,"id")));assertEquals(2,restored.get("turn_count"));
     var saved=obj(obj(restored.get("assessments")).get(s(obj(first.get("qa")),"id")));
-    assertEquals(0,objects(saved.get("created_nodes")).size()); // Later growth must not rewrite the earlier judgment.
+    assertEquals(1,objects(saved.get("created_nodes")).size()); // Later growth must not rewrite the earlier judgment.
     assertEquals(root,obj(restored.get("conversation")).get("anchor_id"));
+    var qaViews=objects(restored.get("qas"));assertNotNull(qaViews.get(0).get("primary_node_id"));assertEquals(qaViews.get(0).get("primary_node_id"),qaViews.get(1).get("primary_node_id"));assertNotEquals(root,qaViews.get(0).get("primary_node_id"));
     assertTrue(Boolean.TRUE.equals(obj(service.qa(d)).get("idempotent")));
     assertThrows(IllegalArgumentException.class,()->service.qa(map("conversation_id",conv.get("id"),"question","过期窗口","expected_turn_index",1)));
   }
@@ -46,8 +47,8 @@ class ConversationRulesTest {
     service.qa(map("conversation_id",conv.get("id"),"question","研究机制第一轮","request_id","saved1"));
     when(ai.call(eq("/intent-matches"),any())).thenThrow(new AiClient.AiFailure("研究方向判断字段缺失"));
     var result=obj(service.qa(map("conversation_id",conv.get("id"),"question","研究机制第二轮","request_id","saved2")));var qa=obj(result.get("qa"));String qid=s(qa,"id");
-    assertEquals("有效回答",qa.get("answer"));assertEquals("pending",obj(result.get("growth_status")).get("status"));assertEquals(2,graph.all("qas").size());assertEquals(2,graph.all("thoughts").size());assertTrue(graph.all("thought_links").isEmpty());assertEquals(1,graph.all("nodes").size());
+    assertEquals("有效回答",qa.get("answer"));assertEquals("pending",obj(result.get("growth_status")).get("status"));assertEquals(2,graph.all("qas").size());assertEquals(2,graph.all("thoughts").size());assertTrue(graph.all("thought_links").isEmpty());assertEquals(2,graph.all("nodes").size());
     var originalQa=new LinkedHashMap<>(graph.get("qas",qid));when(ai.call(eq("/intent-matches"),any())).thenAnswer(i->{var body=(Map<String,Object>)i.getArgument(1);return map("decisions",objects(body.get("pairs")).stream().map(p->map("id",p.get("id"),"decision","same_intent","reason","同一问题")).toList());});
-    var retry=obj(service.retryGrowth(qid));assertEquals("complete",obj(retry.get("growth_status")).get("status"));assertEquals(originalQa,graph.get("qas",qid));assertEquals(1,objects(retry.get("created_nodes")).size());verify(ai,times(2)).call(eq("/research-turn"),any());
+    var retry=obj(service.retryGrowth(qid));assertEquals("complete",obj(retry.get("growth_status")).get("status"));assertEquals(originalQa,graph.get("qas",qid));assertEquals(0,objects(retry.get("created_nodes")).size());verify(ai,times(2)).call(eq("/research-turn"),any());
   }
 }
