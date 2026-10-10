@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "qa_evidence_unchanged": true,
+  "birth_coordinates_unchanged": true,
+  "conversation_anchor_unchanged": true,
+  "parent_summary_unchanged": true,
+  "model": {
+    "method": "local:BAAI/bge-small-zh-v1.5:onnx-int8:75c43b0:cls:l2",
+    "dimension": 512,
+    "semantic": true,
+    "projection": "PCA-2D"
+  },
+  "thought_coordinates": 12,
+  "core_concept_coordinates": 52,
+  "same_intent_pairs": 1,
+  "related_pairs": 34,
+  "created_nodes": [
+    {
+      "id": "node_2d135735f1504ae8",
+      "title": "JEPA的核心假设与其可批判性"
+    }
+  ],
+  "same_intent_similarity": [
+    0.778013
+  ]
+}

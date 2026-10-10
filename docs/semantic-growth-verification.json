@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "space_id": "space_d663786e09cd4add",
+  "different_topic_titles": true,
+  "real_local_embedding": true,
+  "deepseek_intent_validation": true,
+  "automatic_node": "node_cc2ad575d8c54578",
+  "assessment_records_growth": true,
+  "reindex_no_duplicate": true,
+  "fixture": "controlled evidence input, not model-generated answers"
+}

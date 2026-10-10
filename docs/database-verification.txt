@@ -1,0 +1,4 @@
+BEGIN
+psql:scripts/verify-db.sql:26: NOTICE:  PASS permanent QA, origin snapshot and birth embedding protection
+DO
+ROLLBACK

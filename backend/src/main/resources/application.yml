@@ -1,0 +1,17 @@
+server:
+  port: ${XUNXU_PORT:8080}
+  address: ${XUNXU_HOST:127.0.0.1}
+spring:
+  datasource:
+    url: ${XUNXU_DATABASE_URL:jdbc:postgresql://localhost:5432/xunxu_core}
+    username: ${XUNXU_DATABASE_USER:m99}
+    password: ${XUNXU_DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+xunxu:
+  ai-url: ${XUNXU_AI_URL:http://127.0.0.1:8001}
+  server-token: ${XUNXU_SERVER_TOKEN:}
+  seed: ${XUNXU_SEED:true}

@@ -1,0 +1,49 @@
+{
+  "started_at": "2026-10-10T02:52:31.259330+00:00",
+  "base_url": "http://127.0.0.1:8081",
+  "passed": true,
+  "checks": [
+    {
+      "name": "最终写入入口是 Java Research Graph Core",
+      "passed": true
+    },
+    {
+      "name": "独立问答计数、增量成簇和请求去重",
+      "passed": true
+    },
+    {
+      "name": "会话锚点、启动快照及消息级定位永久保留",
+      "passed": true
+    },
+    {
+      "name": "父节点上下文排除后代成果和兄弟分支",
+      "passed": true
+    },
+    {
+      "name": "失效审核和生长循环被拒绝且无部分修改",
+      "passed": true
+    },
+    {
+      "name": "共同分支多来源独立表达且原子树不变",
+      "passed": true
+    },
+    {
+      "name": "移植营养路径、完整子树、原文锚点和独立空间隔离",
+      "passed": true
+    },
+    {
+      "name": "实验 Run 事件去重、乱序拒绝、重试独立及祖先不回写",
+      "passed": true
+    },
+    {
+      "name": "冻结阻断生长、隐藏仍可研究且可恢复",
+      "passed": true
+    }
+  ],
+  "created_spaces": [
+    "space_e44120bfce744490",
+    "space_83b8fd0a43da4e28"
+  ],
+  "finished_at": "2026-10-10T02:52:31.938480+00:00",
+  "note": "验收研究空间和证据保留，不删除或伪装真实实验。"
+}

@@ -1,0 +1,18 @@
+.runtime/
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+**/dist/
+**/target/
+**/*.sqlite3*
+**/.env
+**/.agent-state.json
+**/agent-state.json
+.DS_Store
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/*.tsbuildinfo
+# Original chat exports are private working references, not distribution files.
+/思维决策树逐步完善想法-2026-10-10.md
+/思维决策树逐步完善想法-2026-10-10.html

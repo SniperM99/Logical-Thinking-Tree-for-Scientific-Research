@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "answer_extraction_requests_per_turn": 1,
+  "local_coordinate_dimension": 512,
+  "usage_by_turn": [
+    {
+      "total_tokens": 1137,
+      "prompt_tokens": 899,
+      "completion_tokens": 238,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 899
+    },
+    {
+      "prompt_tokens": 963,
+      "completion_tokens": 218,
+      "total_tokens": 1181,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 707
+    }
+  ],
+  "space_id": "space_585f8d7cc4144a57",
+  "conversation_id": "conv_cef428682bb64f9d",
+  "origin_scope": "space",
+  "anchor_id": "node_0161afe8ba174611",
+  "turn_count": 2,
+  "followup_answer": "43871",
+  "round_assessment_count": 2,
+  "first_round_assessment_preserved": true,
+  "request_replay_idempotent": true
+}

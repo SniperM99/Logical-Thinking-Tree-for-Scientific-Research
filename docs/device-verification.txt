@@ -1,0 +1,3 @@
+PASS: Java HTTP + independent Agent + real subprocess stdout=42; four ordered events; idempotent replay; duplicate delivery prevented; invalid token rejected.
+Acceptance space: space_a975ba83fc7b499a
+Run: run_30e3f6ec31da4514

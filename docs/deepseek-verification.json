@@ -1,0 +1,26 @@
+{
+  "provider": "DeepSeek",
+  "model": "deepseek-flash",
+  "space_id": "space_3cd5fcf6b85e4e01",
+  "conversation_id": "conv_cd93a0fa27bf4719",
+  "qas": [
+    {
+      "qa_id": "qa_eef2da8f92664ac7",
+      "mode": "model",
+      "answer_length": 77,
+      "created_nodes": []
+    },
+    {
+      "qa_id": "qa_18d40386c4e84e9b",
+      "mode": "model",
+      "answer_length": 101,
+      "created_nodes": [
+        {
+          "id": "node_a4de0aa75ad44d70",
+          "title": "控制学习率以检验小型神经网络训练稳定性"
+        }
+      ]
+    }
+  ],
+  "automatic_growth_verified": true
+}

@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "space_id": "space_d3e2e27c2c574ffd",
+  "conversation_id": "conv_af5d2d441d0e4361",
+  "origin_scope": "space",
+  "anchor_id": "node_97f602171e464ca9",
+  "turn_count": 2,
+  "followup_answer": "43871",
+  "round_assessment_count": 2,
+  "first_round_assessment_preserved": true,
+  "request_replay_idempotent": true
+}
