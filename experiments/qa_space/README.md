@@ -23,3 +23,18 @@ HTML 构建器使用仓库中的无数据模板 `tree-template.html`；原评分
 本轮 114 条主题内问答全部关联，加主题根共 115 节点，25 条交叉虚线；13 条域外问答排除。原表 86 条父子标注匹配 45 条（52.33%）。原评分版只有 23 条问答入树，91 条待复核，存在父节点待复核引起的连锁阻塞。
 
 Q1.1 正确回指 Q1；Q3.2 仍被判为 Q3.1 的深化，原表标为 Q3 的子节点。覆盖率提升不代表准确率足够。引用校验只确认文本存在，不证明关系正确。评分未校准，虚线仍沿用旧评分第二、第三名的结果，尚未独立验证。后续需专门评估兄弟/深化区分及真实会话边界，不能把当前结果直接视为生产级判别规则。
+
+## 关系判别 V2（实验 A）
+
+在 `codex/relation-classification-v2` 中，`relation_v2.py` 增加研究目标、目标包含及替代关系解释，并用上一版 AI 父节点及其上位作为对比提示。旧图是待检查的提案，不是标准答案；原表父标注没有进入模型输入。检索和问答节点粒度保持基线，未接入平台。
+
+`relation_v2_question_guard.py` 是第二轮探索修订：以问题自身目标判定范围，核心描述只作消歧，避免把描述中提到的方法或后续方向扩大为父问题的范围。此次数据已经被检查过，所有结果均为开发集探索，不是留出验证。
+
+```sh
+python experiments/qa_space/relation_v2.py
+python experiments/qa_space/relation_v2_question_guard.py
+python experiments/qa_space/evaluate_relation_v2.py --variant relation-v2-question-guard
+python experiments/qa_space/build_relation_v2_comparison.py --variant relation-v2-question-guard
+```
+
+第一轮保存在 `relation-v2/`，第二轮保存在 `relation-v2-question-guard/`。比较统计同时列出正确关系增益、损失、待复核及兄弟误接成子节点的案例；不能只以已连线精度判断改进。HTML 详情显示研究目标及关系解释。核心描述引用通过不代表语义正确；存在歧义和未通过校验的问答仍需复核。
