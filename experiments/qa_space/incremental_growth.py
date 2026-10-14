@@ -7,10 +7,17 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'ai-engine')
 from main import provider_request
 from embeddings import local_embedding,METHOD
 from prepare_dataset import load_inputs
-SYSTEM='''你负责研究树的单条增量生长，已有树不可移动或改写。根主题由root指定。先判断当前问答是否在研究范围内；域外输出out_of_scope，不为凑树收录。提供的context是最新已提交的局部结构，不是全历史。上一问的assigned_node是实际归属；时间流不保证同一会话。当前目标相同仅补充解释或证据时same_problem，关联现有节点资源，不新建。明确研究目标是上位问题的子任务时deepening；对话承接不等于层级包含。研究不同维度且同属一个上位时sibling，应选共同上位parent_id，并给sibling_id作为比较对象。历史指代来源不在context，或找不到更直接父问题时needs_retrieval；stage=global后仍无法确认则uncertain。相关方法不是父节点。独立主题方向new_direction可归root。不能根据编号猜层级。输出kind,parent_id,sibling_id,reason,current_goal,parent_goal,containment_explanation,alternative_explanation,current_quote,parent_quote。两端引用逐字来自question/core。out_of_scope/needs_retrieval/uncertain允许引用空串。引用有效不代表语义正确，必须解释包含与并列差别。调用grow_one。'''
+SYSTEM='''你负责研究树的单条增量生长，已有树不可移动或改写。根主题由root指定。先判断当前问答是否在研究范围内；域外输出out_of_scope，不为凑树收录。提供的context是最新已提交的局部结构，不是全历史。上一问的assigned_node是实际归属；时间流不保证同一会话。当前目标相同仅补充解释或证据时same_problem，关联现有节点资源，不新建。明确研究目标是上位问题的子任务时deepening；对话承接不等于层级包含。研究不同维度且同属一个上位时sibling，应选共同上位parent_id，并给sibling_id作为比较对象。历史指代来源不在context，或找不到更直接父问题时needs_retrieval；stage=global后仍无法确认则uncertain。相关方法不是父节点。独立主题方向new_direction可归root，但局部没有合适父问题不代表整个空间没有。准备挂根或创建new_direction时必须先检索已有空间；stage=global时必须比较检索候选并解释为何没有更直接归属，不能仅因与根主题相关而挂根。不能根据编号猜层级。输出kind,parent_id,sibling_id,reason,current_goal,parent_goal,containment_explanation,alternative_explanation,current_quote,parent_quote。两端引用逐字来自question/core。out_of_scope/needs_retrieval/uncertain允许引用空串。引用有效不代表语义正确，必须解释包含与并列差别。调用grow_one。'''
 KINDS=['same_problem','deepening','sibling','history_return','new_direction','out_of_scope','needs_retrieval','uncertain']
 FIELDS=['kind','parent_id','sibling_id','reason','current_goal','parent_goal','containment_explanation','alternative_explanation','current_quote','parent_quote']
 SCHEMA={'type':'object','required':FIELDS,'additionalProperties':False,'properties':{k:({'type':'string','enum':KINDS} if k=='kind' else {'type':'string'}) for k in FIELDS}}
+def needs_space_check(decision,valid,root_id='research-root'):
+ return not valid or decision.get('kind') in ['needs_retrieval','uncertain','new_direction'] or (decision.get('parent_id')==root_id and decision.get('kind')!='out_of_scope')
+def root_check_schema():
+ return {**SCHEMA,'required':FIELDS+['closer_parent_found','root_check_reason'],'properties':{**SCHEMA['properties'],'closer_parent_found':{'type':'boolean'},'root_check_reason':{'type':'string','description':'比较检索候选，说明是否存在更直接归属'}}}
+def root_confirmed(decision,root_id='research-root'):
+ if decision.get('parent_id')!=root_id and decision.get('kind')!='new_direction':return True
+ return decision.get('closer_parent_found') is False and bool(str(decision.get('root_check_reason','')).strip())
 def tokens(text):
  return Counter(re.findall(r'[a-zA-Z][a-zA-Z0-9-]*',text.lower())+[s[i:i+2] for s in re.findall(r'[\u4e00-\u9fff]+',text) for i in range(len(s)-1)])
 class OnlineIndex:
@@ -79,7 +86,7 @@ def main():
  def ask(payload):
   key=hashlib.sha256((json.dumps(config,ensure_ascii=False)+json.dumps(payload,ensure_ascii=False)).encode()).hexdigest();path=cache/(key+'.json')
   if path.exists():stats['cache_hits']+=1;return json.loads(path.read_text())['decision']
-  result=provider_request('chat/completions',{'model':config['model'],'temperature':0.1,'max_tokens':1600,'tools':[{'type':'function','function':{'name':'grow_one','description':'单条增量生长判别','parameters':SCHEMA}}],'tool_choice':{'type':'function','function':{'name':'grow_one'}},'messages':[{'role':'system','content':SYSTEM},{'role':'user','content':json.dumps(payload,ensure_ascii=False)}]});stats['model_requests']+=1;usage=result.get('usage',{});stats['input_tokens']+=usage.get('prompt_tokens',0);stats['output_tokens']+=usage.get('completion_tokens',0);choice=result['choices'][0];assert choice.get('finish_reason')!='length';d=json.loads(choice['message']['tool_calls'][0]['function']['arguments']);path.write_text(json.dumps({'decision':d,'usage':usage},ensure_ascii=False,indent=2));return d
+  result=provider_request('chat/completions',{'model':config['model'],'temperature':0.1,'max_tokens':1600,'tools':[{'type':'function','function':{'name':'grow_one','description':'单条增量生长判别','parameters':root_check_schema() if payload['stage']=='global' else SCHEMA}}],'tool_choice':{'type':'function','function':{'name':'grow_one'}},'messages':[{'role':'system','content':SYSTEM},{'role':'user','content':json.dumps(payload,ensure_ascii=False)}]});stats['model_requests']+=1;usage=result.get('usage',{});stats['input_tokens']+=usage.get('prompt_tokens',0);stats['output_tokens']+=usage.get('completion_tokens',0);choice=result['choices'][0];assert choice.get('finish_reason')!='length';d=json.loads(choice['message']['tool_calls'][0]['function']['arguments']);path.write_text(json.dumps({'decision':d,'usage':usage},ensure_ascii=False,indent=2));return d
  for i,r in enumerate(rows):
   if r['qa_id'] in state['processed']:continue
   if a.limit and i>=a.limit:break
@@ -90,7 +97,7 @@ def main():
    ids.extend(n['qa_id'] for n in state['nodes'] if n['parent']==anchor or (parent and n['parent']==parent))
   else:ids.extend(n['qa_id'] for n in state['nodes'] if n['parent']=='research-root')
   ids=list(dict.fromkeys(ids))[:16];current={**r,'core':cores[r['qa_id']]};payload={'stage':'local','revision':state['revision'],'root':brief(state['nodes'][0]),'current':{k:current[k] for k in ['qa_id','question','core']},'previous_qa':({'question':prev['question'],'core':cores[prev['qa_id']],'assigned_node':anchor} if prev else None),'conversation_boundary':'未知会话ID，按时间流实验','context':[brief(by[k]) for k in ids]};d=ask(payload);valid=validate(d,payload['current'],payload['context']);v=vector(r);global_used=False
-  if d['kind'] in ['needs_retrieval','uncertain'] or not valid:
+  if needs_space_check(d,valid):
    stats['global_queries']+=1;global_used=True;candidates=index.search(r['question']+'\n'+cores[r['qa_id']],v,a.budget)
    for key in candidates:
     node=state['assignments'].get(key)
@@ -98,6 +105,7 @@ def main():
      if not node:break
      ids.append(node);node=by[node]['parent']
    ids=list(dict.fromkeys(ids));payload={**payload,'stage':'global','retrieved_questions':[{'qa_id':k,'question':rowby[k]['question'],'core':cores[k],'assigned_node':state['assignments'].get(k)} for k in candidates],'context':[brief(by[k]) for k in ids]};d=ask(payload);valid=validate(d,payload['current'],payload['context'])
+  if global_used and not root_confirmed(d):valid=False
   if d['kind']=='needs_retrieval':d['kind']='uncertain'
   event=commit(state,r,cores[r['qa_id']],d,valid);index.add(r['qa_id'],r['question']+'\n'+cores[r['qa_id']],v);stats['steps'].append({**event,'seconds':time.monotonic()-start,'global_used':global_used,'context_nodes':len(payload['context'])});tmp=out/'checkpoint.tmp';tmp.write_text(json.dumps({'config':config,'state':state,'stats':stats},ensure_ascii=False));tmp.replace(checkpoint);print('Committed',state['revision'],'/',len(rows),event['action'],flush=True)
  report={'attached_qa':len(state['nodes'])-1,'pending_qa':len(state['pending']),'resource_qa':len(state['resources']),'outside_qa':len(state['outside']),'cross_links':0,'processed':len(state['processed']),'model':config['model'],'stats':stats,'database_modified':False,'parent_labels_used_for_prediction':False,'scope_labels_used_for_prediction':False,'existing_nodes_moved':0,'existing_edges_changed':0,'limitations':'Offline chronological stream; true conversation boundaries unknown. Core descriptions prepared earlier; their cost excluded. Retrieval is incremental index with linear historical similarity scan, not ANN.'}

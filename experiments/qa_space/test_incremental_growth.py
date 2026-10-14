@@ -1,7 +1,15 @@
 import unittest
 import numpy as np
-from incremental_growth import new_state,commit,OnlineIndex
+from incremental_growth import new_state,commit,OnlineIndex,needs_space_check,root_confirmed
 class IncrementalTests(unittest.TestCase):
+ def test_root_and_new_direction_always_require_space_check(self):
+  self.assertTrue(needs_space_check({'kind':'deepening','parent_id':'research-root'},True))
+  self.assertTrue(needs_space_check({'kind':'new_direction','parent_id':'other'},True))
+  self.assertFalse(needs_space_check({'kind':'deepening','parent_id':'other'},True))
+  self.assertFalse(root_confirmed({'kind':'new_direction','parent_id':'research-root'}))
+  self.assertFalse(root_confirmed({'parent_id':'research-root','closer_parent_found':True,'root_check_reason':'已有候选'}))
+  self.assertTrue(root_confirmed({'parent_id':'research-root','closer_parent_found':False,'root_check_reason':'候选均不包含当前目标'}))
+
  def test_append_keeps_old_positions_edges_and_retry_assignment(self):
   s=new_state('主题','范围');d={'kind':'deepening','parent_id':'research-root','reason':'子问题','current_quote':'当前问','parent_quote':'主题'}
   a={'qa_id':'a','sequence':1,'question':'当前问','answer':'答'};commit(s,a,'核心',d,True)
