@@ -42,3 +42,19 @@ python experiments/qa_space/build_relation_v2_comparison.py --variant relation-v
 ## 待判定资源池
 
 构建 V2 HTML 后运行 `python experiments/qa_space/resource_pool.py`。未入树问答按 AI 的 `proposal.parent_id` 放到建议归属节点的资源池，保留完整内容与核心描述。建议目标未入树或缺失时进入未放置公共池，并保留建议目标；不按时间上一问放置、不追溯祖先、不建立隐藏父子链。节点详情与工具栏均可查看，暂存不改变图结构及父节点准确率。重复运行替换原资源池块。
+
+## 严格逐条增量生长
+
+`incremental_growth.py` 从空主题根开始，不读取旧树或原始父子/域外标注。每条 QA 先读取刚提交的节点与上一问实际归属，进行局部判断；不确定、请求检索或引用未通过时，才使用已处理问答索引检索。索引增量维护 BM25 统计和512维向量，当前候选搜索仍为线性扫描，不宣称 ANN。每问最多一次局部及一次扩大检索模型请求。
+
+同问题补充直接放到已有节点资源池，不创建节点。新分支只追加一个节点，持久化坐标；同层占位向两边寻找空位，不改旧坐标、父边或顺序。疑似旧结构错误不自动重构。未确定问答按建议目标暂存；域外问答保留档案。每步保存原子检查点、树版本、事件和实际 token 用量，失败后重新运行从最后一次提交继续，已完成记录不重新判别。
+
+```sh
+python experiments/qa_space/incremental_growth.py --theme 智能制造 --budget 10
+python experiments/qa_space/evaluate_incremental_growth.py
+python experiments/qa_space/build_incremental_page.py
+```
+
+输出目录 `.runtime/experiments/robot-qa-v1/incremental-growth/`。主题、研究范围、候选预算可以通过 `--theme`、`--scope`、`--budget` 指定；检查点配置或输入变化时拒绝混用，独立实验应换 `--dataset` 目录。`--limit` 可用于分批执行，同一配置再运行会继续。
+
+当前仍为离线时间流，无真实会话ID；在线平台事务、跨设备并发、人工结构治理、任务队列尚未接入。思想描述沿用预先准备的资料，其模型生成成本未计入当前 token。模型缓存命中次数与实际请求分开统计。节点描绘直接读取保存的位置；不重新运行树布局算法。
