@@ -15,16 +15,16 @@ class LabTests(unittest.TestCase):
     q=lab.retry({'qa_id':q['qa_id']});self.assertEqual(q['status'],'node');self.assertEqual(model.call_count,2)
     lab.turn(request);self.assertEqual(model.call_count,2)
    w=lab.workspace(lab.load());self.assertEqual(len(w['qas']),1);self.assertEqual(len(w['graph']['nodes']),2);self.assertEqual(len(w['graph']['pending']),0)
- def test_local_root_proposal_is_rechecked_against_existing_space(self):
+ def test_even_non_root_deepening_must_retrieve_and_compare(self):
   with tempfile.TemporaryDirectory() as tmp,patch.object(lab,'FILE',Path(tmp)/'state.json'),patch.object(lab.local_embedding,'encode',return_value=[[1.,0.]]):
    lab.create({'theme':'机器人研究','scope':'机器人实验'});db=lab.load();w=lab.workspace(db)
    old={'qa_id':'world','sequence':1,'question':'世界模型如何用于机器人研究？','answer':'预测与决策','core':'世界模型机制','id':'world','conversation_id':'old','request_id':'old','status':'node'}
    lab.commit(w['graph'],old,old['core'],{'kind':'deepening','parent_id':'research-root','reason':'方向','current_quote':'世界模型','parent_quote':'机器人研究'},True);w['qas'].append(old);w['vectors']['world']=[1.,0.];lab.save(db);c=lab.conversation({})
-   local={'kind':'new_direction','parent_id':'research-root','sibling_id':'','reason':'局部未找到','current_goal':'设备适用性','parent_goal':'机器人研究','containment_explanation':'主题相关','alternative_explanation':'不是局部补充','current_quote':'世界模型','parent_quote':'机器人研究'}
+   local={'kind':'deepening','parent_id':'world','sibling_id':'','reason':'局部未找到','current_goal':'设备适用性','parent_goal':'机器人研究','containment_explanation':'主题相关','alternative_explanation':'不是局部补充','current_quote':'世界模型','parent_quote':'世界模型'}
    final={**local,'kind':'deepening','parent_id':'world','parent_quote':'世界模型','closer_parent_found':True,'root_check_reason':'已有世界模型节点更直接'}
    before=dict(w['graph']['nodes'][1]['position'])
    with patch.object(lab,'model',side_effect=[{'answer':'移动设备','core':'世界模型设备适用性'},local,final]) as model:
     q=lab.turn({'question':'世界模型适用于哪些设备？','conversation_id':c['id'],'request_id':'new'})
-    self.assertEqual(model.call_count,3);self.assertEqual(model.call_args_list[-1].args[3]['stage'],'global')
+    self.assertEqual(model.call_count,3);self.assertEqual(model.call_args_list[-1].args[3]['stage'],'global');self.assertEqual(model.call_args_list[-1].args[3]['local_proposal']['kind'],'deepening')
    w=lab.workspace(lab.load());self.assertEqual(q['decision']['parent_id'],'world');self.assertTrue(q['growth_trace']['space_retrieval']);self.assertIn('world',q['growth_trace']['retrieved_qa_ids']);self.assertEqual(w['graph']['nodes'][1]['position'],before)
 if __name__=='__main__':unittest.main()

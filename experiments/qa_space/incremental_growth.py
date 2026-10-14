@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'ai-engine')
 from main import provider_request
 from embeddings import local_embedding,METHOD
 from prepare_dataset import load_inputs
-SYSTEM='''你负责研究树的单条增量生长，已有树不可移动或改写。根主题由root指定。先判断当前问答是否在研究范围内；域外输出out_of_scope，不为凑树收录。提供的context是最新已提交的局部结构，不是全历史。上一问的assigned_node是实际归属；时间流不保证同一会话。当前目标相同仅补充解释或证据时same_problem，关联现有节点资源，不新建。明确研究目标是上位问题的子任务时deepening；对话承接不等于层级包含。研究不同维度且同属一个上位时sibling，应选共同上位parent_id，并给sibling_id作为比较对象。历史指代来源不在context，或找不到更直接父问题时needs_retrieval；stage=global后仍无法确认则uncertain。相关方法不是父节点。独立主题方向new_direction可归root，但局部没有合适父问题不代表整个空间没有。准备挂根或创建new_direction时必须先检索已有空间；stage=global时必须比较检索候选并解释为何没有更直接归属，不能仅因与根主题相关而挂根。不能根据编号猜层级。输出kind,parent_id,sibling_id,reason,current_goal,parent_goal,containment_explanation,alternative_explanation,current_quote,parent_quote。两端引用逐字来自question/core。out_of_scope/needs_retrieval/uncertain允许引用空串。引用有效不代表语义正确，必须解释包含与并列差别。调用grow_one。'''
+SYSTEM='''你负责研究树的单条增量生长，已有树不可移动或改写。根主题由root指定。先判断当前问答是否在研究范围内；域外输出out_of_scope，不为凑树收录。提供的context是最新已提交的局部结构，不是全历史。上一问的assigned_node是实际归属；时间流不保证同一会话。当前目标相同仅补充解释或证据时same_problem，关联现有节点资源，不新建。明确研究目标是上位问题的子任务时deepening；对话承接不等于层级包含。研究不同维度且同属一个上位时sibling，应选共同上位parent_id，并给sibling_id作为比较对象。历史指代来源不在context，或找不到更直接父问题时needs_retrieval；stage=global后仍无法确认则uncertain。相关方法不是父节点。每条问答最终提交前都检索已有空间，将检索候选与局部提案比较，选最直接归属，解释采用和排除候选的理由。局部深化成立不等于整个空间最直接。独立主题方向new_direction可归root，但局部没有合适父问题不代表整个空间没有。准备挂根或创建new_direction时必须先检索已有空间；stage=global时必须比较检索候选并解释为何没有更直接归属，不能仅因与根主题相关而挂根。不能根据编号猜层级。输出kind,parent_id,sibling_id,reason,current_goal,parent_goal,containment_explanation,alternative_explanation,current_quote,parent_quote。两端引用逐字来自question/core。out_of_scope/needs_retrieval/uncertain允许引用空串。引用有效不代表语义正确，必须解释包含与并列差别。调用grow_one。'''
 KINDS=['same_problem','deepening','sibling','history_return','new_direction','out_of_scope','needs_retrieval','uncertain']
 FIELDS=['kind','parent_id','sibling_id','reason','current_goal','parent_goal','containment_explanation','alternative_explanation','current_quote','parent_quote']
 SCHEMA={'type':'object','required':FIELDS,'additionalProperties':False,'properties':{k:({'type':'string','enum':KINDS} if k=='kind' else {'type':'string'}) for k in FIELDS}}
@@ -97,14 +97,13 @@ def main():
    ids.extend(n['qa_id'] for n in state['nodes'] if n['parent']==anchor or (parent and n['parent']==parent))
   else:ids.extend(n['qa_id'] for n in state['nodes'] if n['parent']=='research-root')
   ids=list(dict.fromkeys(ids))[:16];current={**r,'core':cores[r['qa_id']]};payload={'stage':'local','revision':state['revision'],'root':brief(state['nodes'][0]),'current':{k:current[k] for k in ['qa_id','question','core']},'previous_qa':({'question':prev['question'],'core':cores[prev['qa_id']],'assigned_node':anchor} if prev else None),'conversation_boundary':'未知会话ID，按时间流实验','context':[brief(by[k]) for k in ids]};d=ask(payload);valid=validate(d,payload['current'],payload['context']);v=vector(r);global_used=False
-  if needs_space_check(d,valid):
-   stats['global_queries']+=1;global_used=True;candidates=index.search(r['question']+'\n'+cores[r['qa_id']],v,a.budget)
-   for key in candidates:
-    node=state['assignments'].get(key)
-    for _ in range(3):
-     if not node:break
-     ids.append(node);node=by[node]['parent']
-   ids=list(dict.fromkeys(ids));payload={**payload,'stage':'global','retrieved_questions':[{'qa_id':k,'question':rowby[k]['question'],'core':cores[k],'assigned_node':state['assignments'].get(k)} for k in candidates],'context':[brief(by[k]) for k in ids]};d=ask(payload);valid=validate(d,payload['current'],payload['context'])
+  stats['global_queries']+=1;global_used=True;candidates=index.search(r['question']+'\n'+cores[r['qa_id']],v,a.budget)
+  for key in candidates:
+   node=state['assignments'].get(key)
+   for _ in range(3):
+    if not node:break
+    ids.append(node);node=by[node]['parent']
+  ids=list(dict.fromkeys(ids));payload={**payload,'stage':'global','local_proposal':dict(d),'retrieved_questions':[{'qa_id':k,'question':rowby[k]['question'],'core':cores[k],'assigned_node':state['assignments'].get(k)} for k in candidates],'context':[brief(by[k]) for k in ids]};d=ask(payload);valid=validate(d,payload['current'],payload['context'])
   if global_used and not root_confirmed(d):valid=False
   if d['kind']=='needs_retrieval':d['kind']='uncertain'
   event=commit(state,r,cores[r['qa_id']],d,valid);index.add(r['qa_id'],r['question']+'\n'+cores[r['qa_id']],v);stats['steps'].append({**event,'seconds':time.monotonic()-start,'global_used':global_used,'context_nodes':len(payload['context'])});tmp=out/'checkpoint.tmp';tmp.write_text(json.dumps({'config':config,'state':state,'stats':stats},ensure_ascii=False));tmp.replace(checkpoint);print('Committed',state['revision'],'/',len(rows),event['action'],flush=True)

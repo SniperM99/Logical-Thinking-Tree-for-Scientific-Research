@@ -80,19 +80,18 @@ def turn(d:dict):
    brief=lambda n:{k:n[k] for k in ['qa_id','question','core','parent']}
    payload={'stage':'local','root':brief(g['nodes'][0]),'current':{k:q[k] for k in ['qa_id','question','core']},'context':[brief(by[k]) for k in ids],'previous_qa':history[-1] if history else None,'conversation_boundary':'真实会话ID '+c['id']};decision=model(SCHEMA,'grow_one',SYSTEM,payload,1600);valid=validate(decision,q,payload['context'])
    q['growth_trace']={'local_decision':dict(decision),'space_retrieval':False}
-   if needs_space_check(decision,valid):
-    index=OnlineIndex()
-    for old in w['qas']:
-     if old['qa_id']==q['qa_id']:continue
-     if old['qa_id'] in w['vectors']:index.add(old['qa_id'],old['question']+'\n'+old['core'],np.array(w['vectors'][old['qa_id']]))
-    hits=index.search(question+'\n'+q['core'],v,10)
-    for key in hits:
-     node=g['assignments'].get(key)
-     for _ in range(3):
-      if not node:break
-      ids.append(node);node=by[node]['parent']
-    q['growth_trace'].update(space_retrieval=True,retrieved_qa_ids=hits)
-    ids=list(dict.fromkeys(ids))[:50];q['growth_trace']['candidate_node_ids']=ids;payload.update(stage='global',context=[brief(by[k]) for k in ids],retrieved_questions=[{k:old[k] for k in ['qa_id','question','core']} for old in w['qas'] if old['qa_id'] in hits]);decision=model(root_check_schema(),'grow_one',SYSTEM,payload,1600);valid=validate(decision,q,payload['context']) and root_confirmed(decision)
+   index=OnlineIndex()
+   for old in w['qas']:
+    if old['qa_id']==q['qa_id']:continue
+    if old['qa_id'] in w['vectors']:index.add(old['qa_id'],old['question']+'\n'+old['core'],np.array(w['vectors'][old['qa_id']]))
+   hits=index.search(question+'\n'+q['core'],v,10)
+   for key in hits:
+    node=g['assignments'].get(key)
+    for _ in range(3):
+     if not node:break
+     ids.append(node);node=by[node]['parent']
+   q['growth_trace'].update(space_retrieval=True,retrieved_qa_ids=hits)
+   ids=list(dict.fromkeys(ids))[:50];q['growth_trace']['candidate_node_ids']=ids;payload.update(stage='global',local_proposal=dict(decision),context=[brief(by[k]) for k in ids],retrieved_questions=[{k:old[k] for k in ['qa_id','question','core']} for old in w['qas'] if old['qa_id'] in hits]);decision=model(root_check_schema(),'grow_one',SYSTEM+' 最终判别必须将local_proposal与检索出的已有研究问题比较，选择最直接归属；局部深化说得通不代表比已有具体问题更直接。说明采用或排除候选的理由，不能仅因时间承接选择上一问。',payload,1600);valid=validate(decision,q,payload['context']) and root_confirmed(decision)
    g['pending']=[r for r in g['pending'] if r['qa_id']!=q['qa_id']];event=commit(g,q,q['core'],decision,valid);q['status']=event['action'];q['decision']=decision
   except Exception:
    q['status']='growth_failed';q['reason']='回答已保存；生长失败，可以单独重试。'
