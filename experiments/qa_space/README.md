@@ -38,3 +38,7 @@ python experiments/qa_space/build_relation_v2_comparison.py --variant relation-v
 ```
 
 第一轮保存在 `relation-v2/`，第二轮保存在 `relation-v2-question-guard/`。比较统计同时列出正确关系增益、损失、待复核及兄弟误接成子节点的案例；不能只以已连线精度判断改进。HTML 详情显示研究目标及关系解释。核心描述引用通过不代表语义正确；存在歧义和未通过校验的问答仍需复核。
+
+## 待判定资源池
+
+构建 V2 HTML 后运行 `python experiments/qa_space/resource_pool.py`。未入树问答按 AI 的 `proposal.parent_id` 放到建议归属节点的资源池，保留完整内容与核心描述。建议目标未入树或缺失时进入未放置公共池，并保留建议目标；不按时间上一问放置、不追溯祖先、不建立隐藏父子链。节点详情与工具栏均可查看，暂存不改变图结构及父节点准确率。重复运行替换原资源池块。
