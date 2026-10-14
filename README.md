@@ -1,3 +1,5 @@
+> 当前分支 `codex/relation-classification-v2`：独立问答与增量研究树实验。主平台自动生长暂未接入。详见 [分支说明](docs/relation-classification-v2.md)。
+
 # 循序 XunXu：V1.1 系统实现
 
 目标架构采用 **Spring Boot Java 业务服务 + FastAPI Python 智能引擎 + PostgreSQL / pgvector + React / TypeScript**。Java 是最终写入与权限审核的唯一权威；AI 引擎只分析已经准入的证据和上下文，不连接数据库、不直接创建正式节点或批准结构调整。
